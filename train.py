@@ -110,7 +110,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained('google/flan-t5-base')
     tokenizer.add_tokens([AddedToken(" <="), AddedToken(" <"), AddedToken(" id")])
     model = AutoModelForSeq2SeqLM.from_pretrained('google/flan-t5-base')
-    model.resize_token_embeddings(len(tokenizer))
     to_device(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
