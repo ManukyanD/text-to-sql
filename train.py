@@ -63,13 +63,15 @@ def fit(args, model, tokenizer, train_loader, test_loader, optimizer, scheduler)
             if step % 10 == 0:
                 avg_loss = running_loss / 10
                 report(avg_loss, step)
-                checkpoint(epoch, model, args.checkpoints_dir)
+                checkpoint(epoch, model, tokenizer, args.checkpoints_dir)
                 running_loss = 0
         evaluate(args, epoch, model, tokenizer, test_loader)
 
 
-def checkpoint(epoch_num, model, checkpoint_dir):
-    model.save_pretrained(f'{checkpoint_dir}/epoch-{epoch_num}')
+def checkpoint(epoch_num, model, tokenizer, checkpoint_dir):
+    path = f'{checkpoint_dir}/epoch-{epoch_num}'
+    tokenizer.save_pretrained(path)
+    model.save_pretrained(path)
 
 
 def evaluate(args, epoch, model, tokenizer, test_loader):
