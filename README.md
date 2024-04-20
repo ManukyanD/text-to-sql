@@ -1,1 +1,1 @@
-# text-to-sql
+# Text2SQL
