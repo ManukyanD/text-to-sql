@@ -3,6 +3,7 @@ import os
 
 import pandas
 import torch
+from torch.utils.data import Dataset, DataLoader
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from src.dataset.input_preprocessor import InputPreprocessor
@@ -32,6 +33,19 @@ def parse_args():
     return parser.parse_args()
 
 
+class InferDataset(Dataset):
+    def __init__(self, args):
+        self.input_preprocessor = InputPreprocessor(args)
+        self.df = pandas.read_csv(args.data_path)
+
+    def __len__(self):
+        return self.df.shape[0]
+
+    def __getitem__(self, item):
+        return self.input_preprocessor.get_input(self.df.question.iloc[item], self.df.schema.iloc[item]), \
+            self.df.spider_db_name.iloc[item]
+
+
 def main():
     args = parse_args()
 
@@ -41,19 +55,23 @@ def main():
     to_device(model)
 
     tokenize_source = get_tokenize_fn(tokenizer, args.max_source_length)
-    input_preprocessor = InputPreprocessor(args)
     output_postprocessor = OutputPostprocessor(args)
 
-    df = pandas.read_csv(args.data_path)
+    dataset = InferDataset(args)
+    data_loader = DataLoader(dataset, batch_size=32)
     predictions = []
-    for i in range(df.shape[0]):
-        input = input_preprocessor.get_input(df['question'].iloc[i], df['schema'].iloc[i])
-        input_ids = to_device(tokenize_source(input).input_ids)
+    for batch in data_loader:
+        inputs, db_names = batch
+        inputs = to_device(tokenize_source(inputs))
+        input_ids = inputs.input_ids
+        attention_mask = inputs.attention_mask
         with torch.no_grad():
-            output = model.generate(input_ids=input_ids, max_length=args.max_output_length)
-        output = tokenizer.decode(output[0], skip_special_tokens=True)
-        output = output_postprocessor.get_output(output, df["spider_db_name"].iloc[i])
-        predictions.append(output)
+            outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask,
+                                     max_length=args.max_output_length)
+        outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        for index, output in enumerate(outputs):
+            output = output_postprocessor.get_output(output, db_names[index])
+            predictions.append(output)
     with open(args.output_path, 'w') as f:
         for prediction in predictions:
             f.write(f"{prediction}\n")
